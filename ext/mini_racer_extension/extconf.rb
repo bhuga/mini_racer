@@ -10,7 +10,7 @@ $CPPFLAGS += " -fPIC" unless $CPPFLAGS.split.include? "-rdynamic" or RUBY_PLATFO
 $CPPFLAGS += " -std=c++0x"
 $CPPFLAGS += " -fpermissive"
 
-$LDFLAGS.insert 0, " -stdlib=libstdc++ " if RUBY_PLATFORM =~ /darwin/
+$LDFLAGS.insert 0, " -stdlib=libc++ " if RUBY_PLATFORM =~ /darwin/
 
 if ENV['CXX']
   puts "SETTING CXX"
