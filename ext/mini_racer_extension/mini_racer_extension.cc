@@ -59,6 +59,7 @@ typedef struct {
 typedef struct {
     ContextInfo* context_info;
     Local<String>* eval;
+    Local<String>* script_name;
     useconds_t timeout;
     EvalResult* result;
 } EvalParams;
@@ -132,7 +133,8 @@ nogvl_context_eval(void* arg) {
     // terminate ASAP
     isolate->SetData(1, (void*)false);
 
-    MaybeLocal<Script> parsed_script = Script::Compile(context, *eval_params->eval);
+    v8::ScriptOrigin origin(*eval_params->script_name);
+    MaybeLocal<Script> parsed_script = Script::Compile(context, *eval_params->eval, &origin);
     result->parsed = !parsed_script.IsEmpty();
     result->executed = false;
     result->terminated = false;
@@ -502,7 +504,12 @@ static VALUE rb_context_init_with_isolate(VALUE self, VALUE isolate) {
     return Qnil;
 }
 
-static VALUE rb_context_eval_unsafe(VALUE self, VALUE str) {
+static VALUE rb_context_eval_unsafe(int argc, VALUE argv[], VALUE self) {
+
+    VALUE str;
+    VALUE script_name;
+
+    rb_scan_args(argc, argv, "11", &str, &script_name);
 
     EvalParams eval_params;
     EvalResult eval_result;
@@ -520,11 +527,20 @@ static VALUE rb_context_eval_unsafe(VALUE self, VALUE str) {
 	Isolate::Scope isolate_scope(isolate);
 	HandleScope handle_scope(isolate);
 
+  Local<String> v8_script_name;
 	Local<String> eval = String::NewFromUtf8(isolate, RSTRING_PTR(str),
 						  NewStringType::kNormal, (int)RSTRING_LEN(str)).ToLocalChecked();
 
+  if (NIL_P(script_name)) {
+    v8_script_name = v8::String::NewFromUtf8(isolate, "<unnamed input>");
+  } else {
+    v8_script_name = v8::String::NewFromUtf8(isolate, RSTRING_PTR(script_name),
+  						  NewStringType::kNormal, (int)RSTRING_LEN(script_name)).ToLocalChecked();
+  }
+
 	eval_params.context_info = context_info;
 	eval_params.eval = &eval;
+	eval_params.script_name = &v8_script_name;
 	eval_params.result = &eval_result;
 	eval_params.timeout = 0;
 	VALUE timeout = rb_iv_get(self, "@timeout");
@@ -934,7 +950,7 @@ extern "C" {
 	rb_define_alloc_func(rb_cSnapshot, allocate_snapshot);
 	rb_define_alloc_func(rb_cIsolate, allocate_isolate);
 
-	rb_define_private_method(rb_cContext, "eval_unsafe",(VALUE(*)(...))&rb_context_eval_unsafe, 1);
+	rb_define_private_method(rb_cContext, "eval_unsafe",(VALUE(*)(...))&rb_context_eval_unsafe, -1);
 	rb_define_private_method(rb_cContext, "init_with_isolate",(VALUE(*)(...))&rb_context_init_with_isolate, 1);
 	rb_define_private_method(rb_cExternalFunction, "notify_v8", (VALUE(*)(...))&rb_external_function_notify_v8, 0);
 	rb_define_alloc_func(rb_cExternalFunction, allocate_external_function);

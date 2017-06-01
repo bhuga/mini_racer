@@ -19,13 +19,15 @@ module MiniRacer
   end
 
   class RuntimeError < EvalError
+    attr_reader :js_backtrace
+
     def initialize(message)
-      message, js_backtrace = message.split("\n", 2)
-      if js_backtrace && !js_backtrace.empty?
-        @js_backtrace = js_backtrace.split("\n")
-        @js_backtrace.map!{|f| "JavaScript #{f.strip}"}
+      message, @js_backtrace = message.split("\n", 2)
+      if @js_backtrace && !@js_backtrace.empty?
+        @rubyish_js_backtrace = @js_backtrace.split("\n")
+        @rubyish_js_backtrace.map!{|f| "JavaScript #{f.strip}"}
       else
-        @js_backtrace = nil
+        @rubyish_js_backtrace = nil
       end
       super(message)
     end
@@ -33,8 +35,8 @@ module MiniRacer
     def backtrace
       val = super
       return unless val
-      if @js_backtrace
-        @js_backtrace + val
+      if @rubyish_js_backtrace
+        @rubyish_js_backtrace + val
       else
         val
       end
@@ -160,12 +162,12 @@ module MiniRacer
       eval(File.read(filename))
     end
 
-    def eval(str)
+    def eval(str, scriptname = nil)
       @eval_thread = Thread.current
       isolate.with_lock do
         @current_exception = nil
         timeout do
-          eval_unsafe(str)
+          eval_unsafe(str, scriptname)
         end
       end
     ensure

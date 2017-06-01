@@ -111,6 +111,26 @@ class MiniRacerTest < Minitest::Test
     end
   end
 
+  def test_it_allow_naming_scripts
+    context = MiniRacer::Context.new
+    js = <<-JS
+      var abc = function() { return boom ; }
+      var def = function(cb) { cb() }
+    JS
+
+    context.eval(js, "prereqs-file")
+    exp = nil
+    begin
+      assert_equal 22, context.eval('def(abc)', "error-file")
+    rescue => e
+      exp = e
+    end
+    assert_includes e.js_backtrace, "at abc (prereqs-file:1:37)"
+    assert_includes e.js_backtrace, "at def (prereqs-file:2:32)"
+    assert_includes e.js_backtrace, "at error-file:1:1"
+    assert_includes e.message, "boom is not defined"
+  end
+
   def test_it_handles_malformed_js_with_backtrace
     context = MiniRacer::Context.new
     assert_raises MiniRacer::ParseError do
